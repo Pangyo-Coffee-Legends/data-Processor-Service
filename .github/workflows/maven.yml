@@ -1,0 +1,68 @@
+name: Data Processor CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build with Maven
+        run: mvn -B clean package --file pom.xml -DskipTests
+
+      - name: Upload JAR and script
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_IP }}
+          username: ${{ secrets.SSH_ID }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: |
+            target/*.jar
+            startup.sh
+          target: "~/data-processor/target/"
+          strip_components: 1
+          overwrite: true
+
+      - name: Create .env file
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_IP }}
+          username: ${{ secrets.SSH_ID }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script_stop: true
+          script: |
+            echo "INFLUXDB_URL=${{ secrets.INFLUXDB_URL }}" > ~/data-processor/.env
+            echo "INFLUXDB_TOKEN=${{ secrets.INFLUXDB_TOKEN }}" >> ~/data-processor/.env
+            echo "INFLUXDB_ORG=${{ secrets.INFLUXDB_ORG }}" >> ~/data-processor/.env
+            echo "INFLUXDB_BUCKET=${{ secrets.INFLUXDB_BUCKET }}" >> ~/data-processor/.env
+            echo "MQTT_BROKER_URL=${{ secrets.MQTT_BROKER_URL }}" >> ~/data-processor/.env
+            echo "MQTT_CLIENT_ID=${{ secrets.MQTT_CLIENT_ID }}" >> ~/data-processor/.env
+            echo "MQTT_TOPIC=${{ secrets.MQTT_TOPIC }}" >> ~/data-processor/.env
+            echo "EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=${{ secrets.EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE }}" >> ~/data-processor/.env
+            echo "EUREKA_INSTANCE_PREFER_IP_ADDRESS=${{ secrets.EUREKA_INSTANCE_PREFER_IP_ADDRESS }}" >> ~/data-processor/.env
+
+      - name: Execute startup script
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_IP }}
+          username: ${{ secrets.SSH_ID }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script_stop: true
+          script: |
+            chmod +x ~/data-processor/startup.sh
+            cd ~/data-processor
+            ./startup.sh
