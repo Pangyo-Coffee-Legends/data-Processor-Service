@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -24,8 +25,9 @@ public class MqttSubscriberService {
     private final MqttConnectOptions mqttConnectOptions;
     private final InfluxService influxService; // 추가
 
-    private static final String[] TOPICS = {"data/#"};
-    private static final int[] QOS_LEVELS = {1};
+    @Value("${mqtt.topic}")
+    private String mqttTopic;
+    private static final int QOS = 1;
 
     @PostConstruct
     public void subscribe() {
@@ -34,21 +36,24 @@ public class MqttSubscriberService {
                 mqttClient.connect(mqttConnectOptions);
             }
 
-            for (int i = 0; i < TOPICS.length; i++) {
-                String topic = TOPICS[i];
-                int qos = QOS_LEVELS[i];
-                mqttClient.subscribe(topic, qos, (receivedTopic, message) -> {
+            // 1. 환경변수에서 토픽 분리
+            String[] topics = mqttTopic.split(",");
+
+            // 2. 각 토픽 구독
+            for (String topic : topics) {
+                mqttClient.subscribe(topic.trim(), QOS, (receivedTopic, message) -> {
                     String payload = new String(message.getPayload());
-                    processMessage(receivedTopic, payload); // 메시지 처리 로직 분리
+                    processMessage(receivedTopic, payload);
                 });
             }
 
-            log.info("🚀 MQTT 브로커 연결 성공. 구독 토픽: {}", Arrays.toString(TOPICS));
+            log.info("🚀 MQTT 브로커 연결 성공. 구독 토픽: {}", Arrays.toString(topics));
 
         } catch (MqttException e) {
             log.error("❌ MQTT 구독 실패", e);
         }
     }
+
 
     // 메시지 처리 메서드 (추가)
     private void processMessage(String topic, String payload) {

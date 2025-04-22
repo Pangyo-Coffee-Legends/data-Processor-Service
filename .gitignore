@@ -1,33 +1,33 @@
-HELP.md
+# Maven 빌드 결과물
 target/
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
 
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
+# Maven Wrapper
+.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
 
-### IntelliJ IDEA ###
-.idea
-*.iws
+# IDE 관련 파일
 *.iml
-*.ipr
+.idea/
+.classpath
+.project
+.settings/
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### VS Code ###
+# OS/에디터 임시 파일
+.DS_Store
+*.swp
+*~
 .vscode/
+
+# 패키징 파일 (중복 방지 차원에서 추가)
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# 로그 및 기타
+*.log
+hs_err_pid*
+.env
+application.properties
