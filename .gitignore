@@ -1,0 +1,33 @@
+# Maven 빌드 결과물
+target/
+
+# Maven Wrapper
+.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+# IDE 관련 파일
+*.iml
+.idea/
+.classpath
+.project
+.settings/
+
+# OS/에디터 임시 파일
+.DS_Store
+*.swp
+*~
+.vscode/
+
+# 패키징 파일 (중복 방지 차원에서 추가)
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# 로그 및 기타
+*.log
+hs_err_pid*
+.env
+application.properties
