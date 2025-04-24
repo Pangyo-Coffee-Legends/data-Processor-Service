@@ -9,6 +9,7 @@ import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -24,25 +25,38 @@ public class MqttSubscriberService {
 
     private final MqttClient mqttClient;
     private final MqttConnectOptions mqttConnectOptions;
-    private final InfluxService influxService; // 추가
+    private final InfluxService influxService;
 
     @Value("${mqtt.topic}")
     private String mqttTopic;
     private static final int QOS = 1;
 
+    // 마지막 메시지 수신 시간 추적
+    private long lastMessageReceived = System.currentTimeMillis();
+
     @PostConstruct
     public void subscribe() {
+        connectAndSubscribe();
+    }
+
+    // 연결 및 구독 로직을 별도 메서드로 분리
+    private void connectAndSubscribe() {
         try {
             if (!mqttClient.isConnected()) {
                 mqttClient.connect(mqttConnectOptions);
+                log.info("🔌 MQTT 브로커에 연결되었습니다: {}", mqttClient.getServerURI());
+
+                // 연결 성공 후 상태 메시지 발행
+                mqttClient.publish("client/status/" + mqttClient.getClientId(),
+                        "online".getBytes(), 1, true);
             }
 
-            // 1. 환경변수에서 토픽 분리
+            // 토픽 분리 및 구독
             String[] topics = mqttTopic.split(",");
-
-            // 2. 각 토픽 구독
             for (String topic : topics) {
                 mqttClient.subscribe(topic.trim(), QOS, (receivedTopic, message) -> {
+                    // 메시지 수신 시간 업데이트
+                    lastMessageReceived = System.currentTimeMillis();
                     String payload = new String(message.getPayload());
                     processMessage(receivedTopic, payload);
                 });
@@ -51,7 +65,46 @@ public class MqttSubscriberService {
             log.info("🚀 MQTT 브로커 연결 성공. 구독 토픽: {}", Arrays.toString(topics));
 
         } catch (MqttException e) {
-            log.error("❌ MQTT 구독 실패", e);
+            log.error("❌ MQTT 구독 실패: {}", e.getMessage(), e);
+        }
+    }
+
+    // 주기적으로 연결 상태 확인 (30초마다)
+    @Scheduled(fixedDelay = 30000)
+    public void checkConnection() {
+        try {
+            // 연결이 끊어진 경우 재연결
+            if (!mqttClient.isConnected()) {
+                log.warn("⚠️ MQTT 연결이 끊어졌습니다. 재연결 시도 중...");
+                connectAndSubscribe();
+                return;
+            }
+
+            // 마지막 메시지 수신 후 2분 이상 지났는지 확인
+            long now = System.currentTimeMillis();
+            if (now - lastMessageReceived > 120000) {
+                log.warn("⚠️ 2분 이상 메시지가 수신되지 않았습니다. 연결 상태 확인 중...");
+
+                // PING 메시지 전송으로 연결 확인
+                if (mqttClient.isConnected()) {
+                    mqttClient.publish("client/ping/" + mqttClient.getClientId(),
+                            "ping".getBytes(), 0, false);
+                    log.info("🔄 PING 메시지 전송 완료");
+                } else {
+                    log.warn("🔌 연결이 끊어졌습니다. 재연결 시도 중...");
+                    connectAndSubscribe();
+                }
+            }
+        } catch (MqttException e) {
+            log.error("❌ MQTT 연결 확인 중 오류 발생: {}", e.getMessage(), e);
+            try {
+                // 연결 관련 예외 발생 시 재연결 시도
+                mqttClient.disconnectForcibly();
+                Thread.sleep(1000);
+                connectAndSubscribe();
+            } catch (Exception ex) {
+                log.error("❌ 강제 재연결 실패: {}", ex.getMessage(), ex);
+            }
         }
     }
 
