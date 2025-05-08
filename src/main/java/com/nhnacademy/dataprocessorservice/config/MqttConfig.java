@@ -42,12 +42,11 @@ public class MqttConfig {
     public MqttConnectOptions mqttConnectOptions() {
         MqttConnectOptions options = new MqttConnectOptions();
         options.setAutomaticReconnect(true);
-        options.setCleanSession(false); // 영구 세션 사용
-        options.setKeepAliveInterval(180); // 3분으로 늘림
-        options.setConnectionTimeout(30); // 연결 타임아웃 30초
-        options.setMaxInflight(100); // 동시 메시지 처리 수 증가
+        options.setCleanSession(false);
+        options.setKeepAliveInterval(180);
+        options.setConnectionTimeout(30);
+        options.setMaxInflight(100);
 
-        // Last Will and Testament 설정
         options.setWill("client/status/" + clientId, "offline".getBytes(), 1, true);
 
         return options;

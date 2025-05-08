@@ -2,12 +2,16 @@ package com.nhnacademy.dataprocessorservice.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nhnacademy.dataprocessorservice.dto.SensorDataDto;
+import com.nhnacademy.dataprocessorservice.exception.InvalidPayloadException;
+import com.nhnacademy.dataprocessorservice.exception.MqttProcessingException;
+import com.nhnacademy.dataprocessorservice.exception.UnsupportedSensorTypeException;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -17,6 +21,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -26,6 +31,8 @@ public class MqttSubscriberService {
     private final MqttClient mqttClient;
     private final MqttConnectOptions mqttConnectOptions;
     private final InfluxService influxService;
+    private final ModelDispatcherService dispatcher;
+    private final ObjectMapper objectMapper;
 
     @Value("${mqtt.topic}")
     private String mqttTopic;
@@ -39,7 +46,6 @@ public class MqttSubscriberService {
         connectAndSubscribe();
     }
 
-    // 연결 및 구독 로직을 별도 메서드로 분리
     private void connectAndSubscribe() {
         try {
             if (!mqttClient.isConnected()) {
@@ -106,82 +112,92 @@ public class MqttSubscriberService {
                 log.error("❌ 강제 재연결 실패: {}", ex.getMessage(), ex);
             }
         }
+
     }
 
 
-    // 메시지 처리 메서드 (추가)
-    private void processMessage(String topic, String payload) {
+private void processMessage(String topic, String payload) {
+    String messageId = UUID.randomUUID().toString();
+    MDC.put("messageId", messageId);
+
+    try {
+        log.info("📩 수신된 토픽: {} | 페이로드: {}", topic, payload);
+
+        SensorDataDto rawDto;
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            SensorDataDto rawDto = mapper.readValue(payload, SensorDataDto.class);
-
-            // 1. 토픽에서 위치와 센서 종류 추출
-            String[] topicParts = topic.split("/");
-            String location = topicParts[topicParts.length - 3]; // "/n/{위치}/e/{센서}"
-            String sensorType = topicParts[topicParts.length - 1];
-
-            // [추가] LoRa 센서는 처리하지 않음
-            if ("lora".equalsIgnoreCase(sensorType)) {
-                log.debug("🚫 LoRa 통신 데이터 제외 | 토픽: {}", topic);
-                return;
-            }
-
-            // 2. 센서 종류 매핑
-            String sensorName = switch (sensorType) {
-                case "temperature" -> "온도";
-                case "humidity" -> "습도";
-                case "co2" -> "이산화탄소";
-                case "battery" -> "배터리";
-                case "illumination" -> "조도";
-                default -> sensorType; // 알 수 없는 센서
-            };
-
-            String unit = switch (sensorType) {
-                case "temperature" -> "℃";
-                case "humidity" -> "%";
-                case "co2" -> "ppm";
-                case "battery" -> "%";
-                case "illumination" -> "Lux";
-                default -> "-";
-            };
-
-            // 3. 시간 포맷팅
-            String formattedTime = Instant.ofEpochMilli(rawDto.getTime())
-                    .atZone(ZoneId.of("Asia/Seoul"))
-                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-
-            // 👉 [수정된 안전한 센서 값 추출 로직 시작]
-            Object valueObj = rawDto.getValue();
-            Double sensorValue;
-
-            if (valueObj instanceof Integer intVal) {
-                sensorValue = intVal.doubleValue();
-            } else if (valueObj instanceof Double doubleVal) {
-                sensorValue = doubleVal;
-            } else if (valueObj instanceof LinkedHashMap<?, ?> mapVal) {
-                Object innerValue = mapVal.get(sensorType);
-                if (innerValue instanceof Number numberVal) {
-                    sensorValue = numberVal.doubleValue();
-                } else {
-                    log.warn("⚠️ 내부 값이 숫자가 아님: {}", innerValue);
-                    return;
-                }
-            } else {
-                log.warn("⚠️ 예외적인 value 타입: {}", valueObj.getClass());
-                return;
-            }
-            // 👈 [수정된 안전한 센서 값 추출 로직 끝]
-
-            // 4. 로그 출력
-            log.info("📍 위치: {} | ⏰ 시간: {} | 🔍 센서: {} | 📊 값: {} {}",
-                    location, formattedTime, sensorName, sensorValue, unit);
-
-            // 5. InfluxDB 저장
-            influxService.writeSensorData(location, sensorType, sensorValue);
-
-
+            rawDto = objectMapper.readValue(payload, SensorDataDto.class);
         } catch (Exception e) {
-            log.error("❌ JSON 파싱 실패: {}", e.getMessage());
+            throw new InvalidPayloadException("JSON 파싱 실패: " + e.getMessage());
         }
+
+        // 토픽 구조 검증 및 위치/센서 타입 추출
+        String[] parts = topic.split("/");
+        if (parts.length < 3) {
+            throw new InvalidPayloadException("토픽 형식 오류: " + topic);
+        }
+        String location = parts[parts.length - 3];
+        String sensorType = parts[parts.length - 1];
+
+        // 지원 센서 타입 확인
+        switch (sensorType) {
+            case "temperature", "humidity", "co2", "battery", "illumination" -> {
+            }
+            default -> throw new UnsupportedSensorTypeException(sensorType);
+        }
+
+        // 센서명 및 단위 매핑
+        String sensorName = switch (sensorType) {
+            case "temperature" -> "온도";
+            case "humidity"    -> "습도";
+            case "co2"         -> "이산화탄소";
+            case "battery"     -> "배터리";
+            case "illumination"-> "조도";
+            default             -> sensorType;
+        };
+        String unit = switch (sensorType) {
+            case "temperature" -> "℃";
+            case "humidity"    -> "%";
+            case "co2"         -> "ppm";
+            case "battery"     -> "%";
+            case "illumination"-> "Lux";
+            default             -> "-";
+        };
+
+        // 값 추출
+        Object valueObj = rawDto.getValue();
+        Double sensorValue;
+        if (valueObj instanceof Number num) {
+            sensorValue = num.doubleValue();
+        } else if (valueObj instanceof LinkedHashMap<?, ?> map) {
+            Object inner = map.get(sensorType);
+            if (inner instanceof Number n) {
+                sensorValue = n.doubleValue();
+            } else {
+                throw new InvalidPayloadException("맵 내부 값이 숫자가 아님: " + inner);
+            }
+        } else {
+            throw new InvalidPayloadException("지원하지 않는 value 타입: " + valueObj.getClass());
+        }
+
+        // 시간 포맷
+        String formatted = Instant.ofEpochMilli(rawDto.getTime())
+                .atZone(ZoneId.of("Asia/Seoul"))
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+        log.info("📍 위치: {} | ⏰ 시간: {} | 🔍 센서: {}({}) | 📊 값: {} {}",
+                location, formatted, sensorName, sensorType, sensorValue, unit);
+
+        // InfluxDB 저장 및 모델 전송
+        try {
+            influxService.writeSensorData(location, sensorType, sensorValue);
+            dispatcher.dispatch(location, sensorType, sensorValue);
+        } catch (Exception e) {
+            throw new MqttProcessingException("데이터 처리 중 오류 발생"+e);
+        }
+
+    } finally {
+        MDC.clear();
     }
+}
+
 }
