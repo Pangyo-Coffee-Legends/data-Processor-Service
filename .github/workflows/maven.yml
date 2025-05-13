@@ -54,7 +54,6 @@ jobs:
           username: ${{ secrets.SSH_ID }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          script_stop: true
           script: |
             echo "${{ secrets.APPLICATION_PROPERTIES }}" > ~/data-processor/application.properties
 
@@ -66,7 +65,6 @@ jobs:
           username: ${{ secrets.SSH_ID }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          script_stop: true
           script: |
             chmod +x ~/data-processor/startup.sh
             cd ~/data-processor && ./startup.sh
