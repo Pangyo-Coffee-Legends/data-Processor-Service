@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-    <springProperty name="LOG_PATH" defaultValue="./logs"/>
+    <springProperty name="LOG_PATH" source="logging.file.path" defaultValue="./logs"/>
 
     <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_PATH}/app.log</file>
