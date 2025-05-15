@@ -45,7 +45,6 @@ jobs:
           target: "~/data-processor/target"
           strip_components: 1
           overwrite: true
-
       # 3. application.properties 파일 생성
       - name: Create application.properties file
         uses: appleboy/ssh-action@master

@@ -1,5 +1,6 @@
 package com.nhnacademy.dataprocessorservice.service;
 
+import com.nhnacademy.traceloggermodule.logging.FlowLogger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -26,7 +27,13 @@ public class ModelDispatcherService {
     public void dispatch(String location, String sensorType, double value) {
         if (!MODEL_FIELDS.contains(sensorType)) return;
 
+        String traceId = MDC.get("traceId");
+        String source = MDC.get("source");
         String messageId = UUID.randomUUID().toString();
+
+
+        MDC.put("traceId", traceId);
+        MDC.put("source", source);
         MDC.put("messageId", messageId);
 
         Map<String, Object> payload = Map.of(
@@ -36,6 +43,8 @@ public class ModelDispatcherService {
         );
 
         try {
+            FlowLogger.log("ModelDispatcherService#dispatch", payload);
+
             restTemplate.postForEntity(modelApiUrl, payload, Void.class);
             log.info("✅ 모델 서비스 전송 성공: {}", payload);
         } catch (HttpClientErrorException e) {

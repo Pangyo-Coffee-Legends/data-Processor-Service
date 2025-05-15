@@ -16,7 +16,22 @@
     <properties>
         <java.version>21</java.version>
     </properties>
+
+    <repositories>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
+
     <dependencies>
+        <dependency>
+            <groupId>com.github.dusen0528</groupId>
+            <artifactId>trace-logger</artifactId>
+            <version>v1.0.2</version>
+        </dependency>
+
+
         <!-- MQTT Client -->
         <dependency>
             <groupId>org.eclipse.paho</groupId>
@@ -96,6 +111,7 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+
             </plugin>
         </plugins>
     </build>
