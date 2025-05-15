@@ -27,19 +27,18 @@ public class ModelDispatcherService {
     public void dispatch(String location, String sensorType, double value) {
         if (!MODEL_FIELDS.contains(sensorType)) return;
 
-        String traceId = MDC.get("traceId");
-        String source = MDC.get("source");
+        String traceId = UUID.randomUUID().toString();
+        String source = "data-processor-service";
         String messageId = UUID.randomUUID().toString();
-
 
         MDC.put("traceId", traceId);
         MDC.put("source", source);
         MDC.put("messageId", messageId);
 
         Map<String, Object> payload = Map.of(
-                "location",    location,
+                "location", location,
                 "sensor_type", sensorType,
-                "value",       value
+                "value", value
         );
 
         try {
@@ -47,6 +46,7 @@ public class ModelDispatcherService {
 
             restTemplate.postForEntity(modelApiUrl, payload, Void.class);
             log.info("✅ 모델 서비스 전송 성공: {}", payload);
+
         } catch (HttpClientErrorException e) {
             log.error("❌ 모델 서비스 4xx 에러({}): {} | payload={}",
                     e.getStatusCode(), e.getResponseBodyAsString(), payload);
