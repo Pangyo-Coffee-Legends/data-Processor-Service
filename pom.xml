@@ -28,7 +28,7 @@
         <dependency>
             <groupId>com.github.dusen0528</groupId>
             <artifactId>trace-logger</artifactId>
-            <version>v1.0.4</version>
+            <version>1.0.5</version>
         </dependency>
 
 
