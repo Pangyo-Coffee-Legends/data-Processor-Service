@@ -1,23 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-
     <springProperty name="LOG_PATH" source="logging.file.path" defaultValue="./logs"/>
 
     <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_PATH}/app.log</file>
-
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>${LOG_PATH}/app.%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>7</maxHistory>
         </rollingPolicy>
 
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp>
+                    <timeZone>Asia/Seoul</timeZone>
+                </timestamp>
+                <mdc/>
+                <arguments/>
+                <loggerName/>
+                <threadName/>
+                <message/>
+            </providers>
+        </encoder>
     </appender>
-    <logger name="com.nhnacademy.traceloggermodule.logging" level="INFO" />
 
     <root level="INFO">
         <appender-ref ref="JSON_FILE"/>
     </root>
-
 </configuration>
-
