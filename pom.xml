@@ -1,21 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>3.4.4</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
+
     <groupId>com.nhnacademy</groupId>
     <artifactId>data-processor-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>data-processor-service</name>
     <description>data-processor-service</description>
+
     <properties>
         <java.version>21</java.version>
     </properties>
+
+    <!-- Spring Cloud 모듈들의 버전을 한 번에 관리하는 BOM -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>2024.0.1</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <repositories>
         <repository>
@@ -25,12 +43,17 @@
     </repositories>
 
     <dependencies>
+        <!-- Config Server로 설정을 가져오는 Client -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.github.dusen0528</groupId>
             <artifactId>trace-logger</artifactId>
             <version>v1.0.8</version>
         </dependency>
-
 
         <!-- MQTT Client -->
         <dependency>
@@ -39,35 +62,39 @@
             <version>1.2.5</version>
         </dependency>
 
-        <!-- JSON 파싱용 (선택) -->
+        <!-- JSON 파싱용 -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>2.15.0</version>
         </dependency>
 
-
+        <!-- Spring Boot 스타터 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
 
+        <!-- Web, Actuator, Test 등 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
 
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.36</version> <!-- 최신 Lombok 버전 -->
+            <version>1.18.36</version>
             <optional>true</optional>
         </dependency>
 
@@ -75,34 +102,27 @@
         <dependency>
             <groupId>com.influxdb</groupId>
             <artifactId>influxdb-client-java</artifactId>
-            <version>7.2.0</version> <!-- 또는 최신 버전 -->
+            <version>7.2.0</version>
         </dependency>
-
-        <!-- Flux DSL (선택 사항, Flux 쿼리 사용 시) -->
         <dependency>
             <groupId>com.influxdb</groupId>
             <artifactId>flux-dsl</artifactId>
             <version>7.2.0</version>
         </dependency>
 
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-
+        <!-- Configuration Processor -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
             <optional>true</optional>
         </dependency>
 
+        <!-- Logstash Logback Encoder -->
         <dependency>
             <groupId>net.logstash.logback</groupId>
             <artifactId>logstash-logback-encoder</artifactId>
             <version>7.4</version>
         </dependency>
-
-
     </dependencies>
 
     <build>
@@ -111,9 +131,7 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-
             </plugin>
         </plugins>
     </build>
-
 </project>
