@@ -45,18 +45,8 @@ jobs:
           target: "~/data-processor/target"
           strip_components: 1
           overwrite: true
-      # 3. application.properties 파일 생성
-      - name: Create application.properties file
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SSH_IP }}
-          username: ${{ secrets.SSH_ID }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: |
-            echo "${{ secrets.APPLICATION_PROPERTIES }}" > ~/data-processor/application.properties
 
-      # 4. startup.sh 실행
+      # 3. startup.sh 실행
       - name: Execute startup script
         uses: appleboy/ssh-action@master
         with:
