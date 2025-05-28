@@ -12,7 +12,9 @@ import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -34,6 +36,10 @@ public class MqttSubscriberService {
     private final ModelDispatcherService dispatcher;
     private final ObjectMapper objectMapper;
 
+    // AOP 프록시를 통한 self 호출을 위해 지연 주입
+    @Autowired @Lazy
+    private MqttSubscriberService self;
+
     @Value("${mqtt.topic}")
     private String mqttTopic;
     private static final int QOS = 1;
@@ -54,7 +60,7 @@ public class MqttSubscriberService {
 
                 // 연결 성공 후 상태 메시지 발행
                 mqttClient.publish("client/status/" + mqttClient.getClientId(),
-                        "online".getBytes(), 1, true);
+                        "online".getBytes(), QOS, true);
             }
 
             // 토픽 분리 및 구독
@@ -64,7 +70,8 @@ public class MqttSubscriberService {
                     // 메시지 수신 시간 업데이트
                     lastMessageReceived = System.currentTimeMillis();
                     String payload = new String(message.getPayload());
-                    processMessage(receivedTopic, payload);
+                    // self를 통해 public 프로세스 호출 (AOP 적용)
+                    self.processMessage(receivedTopic, payload);
                 });
             }
 
@@ -104,7 +111,6 @@ public class MqttSubscriberService {
         } catch (MqttException e) {
             log.error("❌ MQTT 연결 확인 중 오류 발생: {}", e.getMessage(), e);
             try {
-                // 연결 관련 예외 발생 시 재연결 시도
                 mqttClient.disconnectForcibly();
                 Thread.sleep(1000);
                 connectAndSubscribe();
@@ -115,89 +121,88 @@ public class MqttSubscriberService {
 
     }
 
+    // public으로 변경하여 AOP 프록시 적용
+    public void processMessage(String topic, String payload) {
+        String messageId = UUID.randomUUID().toString();
+        MDC.put("messageId", messageId);
 
-private void processMessage(String topic, String payload) {
-    String messageId = UUID.randomUUID().toString();
-    MDC.put("messageId", messageId);
-
-    try {
-        log.info("📩 수신된 토픽: {} | 페이로드: {}", topic, payload);
-
-        SensorDataDto rawDto;
         try {
-            rawDto = objectMapper.readValue(payload, SensorDataDto.class);
-        } catch (Exception e) {
-            throw new InvalidPayloadException("JSON 파싱 실패: " + e.getMessage());
-        }
+            log.info("📩 수신된 토픽: {} | 페이로드: {}", topic, payload);
 
-        // 토픽 구조 검증 및 위치/센서 타입 추출
-        String[] parts = topic.split("/");
-        if (parts.length < 3) {
-            throw new InvalidPayloadException("토픽 형식 오류: " + topic);
-        }
-        String location = parts[parts.length - 3];
-        String sensorType = parts[parts.length - 1];
-
-        // 지원 센서 타입 확인
-        switch (sensorType) {
-            case "temperature", "humidity", "co2", "battery", "illumination" -> {
+            SensorDataDto rawDto;
+            try {
+                rawDto = objectMapper.readValue(payload, SensorDataDto.class);
+            } catch (Exception e) {
+                throw new InvalidPayloadException("JSON 파싱 실패: " + e.getMessage());
             }
-            default -> throw new UnsupportedSensorTypeException(sensorType);
-        }
 
-        // 센서명 및 단위 매핑
-        String sensorName = switch (sensorType) {
-            case "temperature" -> "온도";
-            case "humidity"    -> "습도";
-            case "co2"         -> "이산화탄소";
-            case "battery"     -> "배터리";
-            case "illumination"-> "조도";
-            default             -> sensorType;
-        };
-        String unit = switch (sensorType) {
-            case "temperature" -> "℃";
-            case "humidity"    -> "%";
-            case "co2"         -> "ppm";
-            case "battery"     -> "%";
-            case "illumination"-> "Lux";
-            default             -> "-";
-        };
+            // 토픽 구조 검증 및 위치/센서 타입 추출
+            String[] parts = topic.split("/");
+            if (parts.length < 3) {
+                throw new InvalidPayloadException("토픽 형식 오류: " + topic);
+            }
+            String location = parts[parts.length - 3];
+            String sensorType = parts[parts.length - 1];
 
-        // 값 추출
-        Object valueObj = rawDto.getValue();
-        Double sensorValue;
-        if (valueObj instanceof Number num) {
-            sensorValue = num.doubleValue();
-        } else if (valueObj instanceof LinkedHashMap<?, ?> map) {
-            Object inner = map.get(sensorType);
-            if (inner instanceof Number n) {
-                sensorValue = n.doubleValue();
+            // 지원 센서 타입 확인
+            switch (sensorType) {
+                case "temperature", "humidity", "co2", "battery", "illumination" -> {
+                }
+                default -> throw new UnsupportedSensorTypeException(sensorType);
+            }
+
+            // 센서명 및 단위 매핑
+            String sensorName = switch (sensorType) {
+                case "temperature" -> "온도";
+                case "humidity"    -> "습도";
+                case "co2"         -> "이산화탄소";
+                case "battery"     -> "배터리";
+                case "illumination"-> "조도";
+                default             -> sensorType;
+            };
+            String unit = switch (sensorType) {
+                case "temperature" -> "℃";
+                case "humidity"    -> "%";
+                case "co2"         -> "ppm";
+                case "battery"     -> "%";
+                case "illumination"-> "Lux";
+                default             -> "-";
+            };
+
+            // 값 추출
+            Object valueObj = rawDto.getValue();
+            Double sensorValue;
+            if (valueObj instanceof Number num) {
+                sensorValue = num.doubleValue();
+            } else if (valueObj instanceof LinkedHashMap<?, ?> map) {
+                Object inner = map.get(sensorType);
+                if (inner instanceof Number n) {
+                    sensorValue = n.doubleValue();
+                } else {
+                    throw new InvalidPayloadException("맵 내부 값이 숫자가 아님: " + inner);
+                }
             } else {
-                throw new InvalidPayloadException("맵 내부 값이 숫자가 아님: " + inner);
+                throw new InvalidPayloadException("지원하지 않는 value 타입: " + valueObj.getClass());
             }
-        } else {
-            throw new InvalidPayloadException("지원하지 않는 value 타입: " + valueObj.getClass());
+
+            // 시간 포맷
+            String formatted = Instant.ofEpochMilli(rawDto.getTime())
+                    .atZone(ZoneId.of("Asia/Seoul"))
+                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+            log.info("📍 위치: {} | ⏰ 시간: {} | 🔍 센서: {}({}) | 📊 값: {} {}",
+                    location, formatted, sensorName, sensorType, sensorValue, unit);
+
+            // InfluxDB 저장 및 모델 전송
+            try {
+                influxService.writeSensorData(location, sensorType, sensorValue);
+                dispatcher.dispatch(location, sensorType, sensorValue);
+            } catch (Exception e) {
+                throw new MqttProcessingException("데이터 처리 중 오류 발생" + e);
+            }
+
+        } finally {
+            MDC.clear();
         }
-
-        // 시간 포맷
-        String formatted = Instant.ofEpochMilli(rawDto.getTime())
-                .atZone(ZoneId.of("Asia/Seoul"))
-                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-
-        log.info("📍 위치: {} | ⏰ 시간: {} | 🔍 센서: {}({}) | 📊 값: {} {}",
-                location, formatted, sensorName, sensorType, sensorValue, unit);
-
-        // InfluxDB 저장 및 모델 전송
-        try {
-            influxService.writeSensorData(location, sensorType, sensorValue);
-            dispatcher.dispatch(location, sensorType, sensorValue);
-        } catch (Exception e) {
-            throw new MqttProcessingException("데이터 처리 중 오류 발생"+e);
-        }
-
-    } finally {
-        MDC.clear();
     }
-}
-
 }
