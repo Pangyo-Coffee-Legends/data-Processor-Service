@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <springProperty name="LOG_PATH" source="logging.file.path" defaultValue="./logs"/>
-    <logger name="org.eclipse.paho" level="WARN"/>
 
-    <!--  파일 출력 설정 -->
+    <!-- 로그 경로 설정 -->
+    <springProperty name="LOG_PATH" source="logging.file.path" defaultValue="./logs"/>
+
+    <!-- 1) Paho 내부 디테일 로그 억제 -->
+    <logger name="org.eclipse.paho.client.mqttv3.internal" level="ERROR"/>
+
+    <!-- 2) 파일 출력용 Appender -->
     <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_PATH}/app.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
@@ -14,8 +18,7 @@
             <providers>
                 <timestamp timeZone="Asia/Seoul"/>
                 <mdc/>
-                <logstashMarkers/>
-                <arguments/>
+                <markers/>      <!-- StructuredArguments.entries(...) 결과를 최상위에 노출 -->
                 <loggerName/>
                 <threadName/>
                 <message/>
@@ -23,14 +26,13 @@
         </encoder>
     </appender>
 
-    <!-- 콘솔용 -->
+    <!-- 3) 콘솔 출력용 Appender -->
     <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
             <providers>
                 <timestamp timeZone="Asia/Seoul"/>
                 <mdc/>
-                <logstashMarkers/>
-                <arguments/>
+                <markers/>
                 <loggerName/>
                 <threadName/>
                 <message/>
@@ -38,9 +40,10 @@
         </encoder>
     </appender>
 
-    <!-- 루트로거에 연결 -->
+    <!-- 4) 루트 로거에 두 개 모두 연결 -->
     <root level="INFO">
         <appender-ref ref="JSON_FILE"/>
         <appender-ref ref="JSON_CONSOLE"/>
     </root>
+
 </configuration>
