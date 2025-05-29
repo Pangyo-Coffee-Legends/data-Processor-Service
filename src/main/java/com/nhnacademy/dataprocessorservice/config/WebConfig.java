@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestTemplate;
 
@@ -12,6 +13,8 @@ import java.util.concurrent.Executor;
 
 
 @Configuration
+@EnableAspectJAutoProxy(exposeProxy = true, proxyTargetClass = true)
+
 public class WebConfig {
     @Bean
     public RestTemplate restTemplate(){
