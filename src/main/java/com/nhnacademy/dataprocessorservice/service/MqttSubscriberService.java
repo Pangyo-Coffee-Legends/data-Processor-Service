@@ -33,7 +33,6 @@ import java.util.UUID;
 public class MqttSubscriberService {
 
     private final MqttClient mqttClient;
-    private final MqttSubscriberService self; // AOP 프록시 호출용
     private final InfluxService influxService;
     private final ModelDispatcherService dispatcher;
     private final ObjectMapper objectMapper;
@@ -47,6 +46,9 @@ public class MqttSubscriberService {
     private static final int QOS = 1;
     private long lastMessageReceived;
 
+    /**
+     * 애플리케이션 시작 시 구독을 설정합니다.
+     */
     @PostConstruct
     public void subscribe() {
         lastMessageReceived = System.currentTimeMillis();
@@ -69,6 +71,7 @@ public class MqttSubscriberService {
                     lastMessageReceived = System.currentTimeMillis();
                     String payload = new String(msg.getPayload());
                     try {
+                        // AOP 프록시를 통해 processMessage 호출
                         MqttSubscriberService proxy = (MqttSubscriberService) AopContext.currentProxy();
                         proxy.processMessage(t, payload);
                     } finally {
@@ -83,13 +86,12 @@ public class MqttSubscriberService {
     }
 
     /**
-     * 메시지를 처리하고 AOP로 traceId, response_time을 로깅합니다.
+     * 메시지를 처리하고 AOP 어드바이스를 트리거합니다.
      *
      * @param topic   MQTT 토픽
      * @param payload 메시지 페이로드 JSON
      */
     public void processMessage(String topic, String payload) {
-        // MDC에 messageId 설정
         MDC.put("messageId", UUID.randomUUID().toString());
         try {
             log.info("📩 수신: topic={} | payload={}", topic, payload);
@@ -114,7 +116,7 @@ public class MqttSubscriberService {
         }
     }
 
-    private SensorDataDto parsePayload(String payload) throws Exception {
+    private SensorDataDto parsePayload(String payload) {
         try {
             return objectMapper.readValue(payload, SensorDataDto.class);
         } catch (Exception e) {
@@ -175,7 +177,7 @@ public class MqttSubscriberService {
     }
 
     /**
-     * 애플리케이션 종료 시 MQTT 연결 해제 및 구독 해제를 수행합니다.
+     * 애플리케이션 종료 시 MQTT 연결 정리
      */
     @PreDestroy
     public void destroy() {
