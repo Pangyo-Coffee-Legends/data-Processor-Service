@@ -2,7 +2,7 @@
 <configuration>
     <springProperty name="LOG_PATH" source="logging.file.path" defaultValue="./logs"/>
 
-    <!-- 1) 파일 출력 설정 (기존) -->
+    <!--  파일 출력 설정 -->
     <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_PATH}/app.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
@@ -11,10 +11,9 @@
         </rollingPolicy>
         <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
             <providers>
-                <timestamp>
-                    <timeZone>Asia/Seoul</timeZone>
-                </timestamp>
+                <timestamp timeZone="Asia/Seoul"/>
                 <mdc/>
+                <logstashMarkers/>
                 <arguments/>
                 <loggerName/>
                 <threadName/>
@@ -23,14 +22,13 @@
         </encoder>
     </appender>
 
-    <!-- 2) 콘솔 출력용 Appender 추가 -->
+    <!-- 콘솔용 -->
     <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
             <providers>
-                <timestamp>
-                    <timeZone>Asia/Seoul</timeZone>
-                </timestamp>
+                <timestamp timeZone="Asia/Seoul"/>
                 <mdc/>
+                <logstashMarkers/>
                 <arguments/>
                 <loggerName/>
                 <threadName/>
@@ -39,9 +37,9 @@
         </encoder>
     </appender>
 
-    <!-- 3) 루트 로거에 둘 다 연결 -->
+    <!-- 루트로거에 연결 -->
     <root level="INFO">
         <appender-ref ref="JSON_FILE"/>
-        <appender-ref ref="JSON_CONSOLE"/>  <!-- 콘솔에도 찍히게 -->
+        <appender-ref ref="JSON_CONSOLE"/>
     </root>
 </configuration>
