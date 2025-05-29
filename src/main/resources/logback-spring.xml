@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-    <!-- 로그 경로 설정 -->
+    <!-- application.yml 의 logging.file.path 값을 받아와요 -->
     <springProperty name="LOG_PATH" source="logging.file.path" defaultValue="./logs"/>
 
-    <!-- 1) Paho 내부 디테일 로그 억제 -->
-    <logger name="org.eclipse.paho.client.mqttv3.internal" level="ERROR"/>
+    <!-- Paho 클라이언트 로그는 WARN 이상만 -->
+    <logger name="org.eclipse.paho" level="WARN"/>
 
-    <!-- 2) 파일 출력용 Appender -->
+    <!-- 트레이스 로거 모듈(Aspect)이 INFO 레벨로 동작하도록 -->
+    <logger name="com.nhnacademy.traceloggermodule" level="INFO"/>
+
+    <!-- 1) 파일 로깅 -->
     <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_PATH}/app.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
@@ -16,23 +19,32 @@
         </rollingPolicy>
         <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
             <providers>
+                <!-- 타임스탬프 -->
                 <timestamp timeZone="Asia/Seoul"/>
+                <!-- MDC 에 담긴 traceId, source, messageId 등 -->
                 <mdc/>
-                <markers/>      <!-- StructuredArguments.entries(...) 결과를 최상위에 노출 -->
+                <!-- StructuredArguments.entries(...) 로 찍히는 response_time, target 필드 등 -->
+                <logstashMarkers/>
+                <!-- {} 플레이스홀더에 넘어오는 인자들(StructuredArguments) -->
+                <arguments/>
+                <!-- 로거 이름 (com.nhnacademy...) -->
                 <loggerName/>
+                <!-- 쓰레드 이름 -->
                 <threadName/>
+                <!-- 실제 메시지 포맷 -->
                 <message/>
             </providers>
         </encoder>
     </appender>
 
-    <!-- 3) 콘솔 출력용 Appender -->
+    <!-- 2) 콘솔 -->
     <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
             <providers>
                 <timestamp timeZone="Asia/Seoul"/>
                 <mdc/>
-                <markers/>
+                <logstashMarkers/>
+                <arguments/>
                 <loggerName/>
                 <threadName/>
                 <message/>
@@ -40,7 +52,7 @@
         </encoder>
     </appender>
 
-    <!-- 4) 루트 로거에 두 개 모두 연결 -->
+    <!-- 3) 루트 로거에 둘 다 붙이기 -->
     <root level="INFO">
         <appender-ref ref="JSON_FILE"/>
         <appender-ref ref="JSON_CONSOLE"/>
