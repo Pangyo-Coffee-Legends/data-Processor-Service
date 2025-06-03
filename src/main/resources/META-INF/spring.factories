@@ -1,3 +1,0 @@
-# META-INF/spring.factories
-org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-com.nhnacademy.traceloggermodule.TraceLoggerAutoConfiguration

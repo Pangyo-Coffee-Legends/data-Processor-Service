@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nhnacademy.dataprocessorservice.dto.SensorDataDto;
 import com.nhnacademy.dataprocessorservice.exception.InvalidPayloadException;
 import com.nhnacademy.dataprocessorservice.exception.MqttProcessingException;
-import com.nhnacademy.dataprocessorservice.exception.UnsupportedSensorTypeException;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.slf4j.MDC;
-import org.springframework.aop.framework.AopContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +19,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -61,29 +60,35 @@ public class MqttSubscriberService {
                 mqttClient.connect();
                 log.info("🔌 MQTT 연결됨: {}", mqttClient.getServerURI());
             }
+
             String[] topics = mqttTopic.split(",");
             for (String topic : topics) {
                 mqttClient.subscribe(topic.trim(), QOS, (t, msg) -> {
-                    // 새로운 traceId 생성 및 MDC에 등록
-                    String traceId = UUID.randomUUID().toString();
-                    MDC.put("traceId", traceId);
-                    MDC.put("source", serviceName);
-                    lastMessageReceived = System.currentTimeMillis();
-                    String payload = new String(msg.getPayload());
                     try {
-                        // AOP 프록시를 통해 processMessage 호출
-                        MqttSubscriberService proxy = (MqttSubscriberService) AopContext.currentProxy();
-                        proxy.processMessage(t, payload);
+                        // ✅ Trace 정보 수동 주입
+                        MDC.put("traceId", UUID.randomUUID().toString());
+                        MDC.put("source", serviceName);
+                        MDC.put("messageId", UUID.randomUUID().toString());
+
+                        String payload = new String(msg.getPayload());
+                        // ✅ 프록시 호출 말고 그냥 직접 처리
+                        processMessage(t, payload);
+
+                    } catch (Exception e) {
+                        log.error("🔥 메시지 처리 실패", e);
                     } finally {
-                        MDC.clear();
+                        MDC.clear(); // ✅ 깨끗하게 정리
                     }
                 });
             }
+
             log.info("🚀 MQTT 구독 완료: {}", Arrays.toString(topics));
+
         } catch (MqttException e) {
             log.error("❌ MQTT 구독 실패", e);
         }
     }
+
 
     /**
      * 메시지를 처리하고 AOP 어드바이스를 트리거합니다.
@@ -93,12 +98,18 @@ public class MqttSubscriberService {
      */
     public void processMessage(String topic, String payload) {
         MDC.put("messageId", UUID.randomUUID().toString());
+
         try {
             log.info("📩 수신: topic={} | payload={}", topic, payload);
 
             SensorDataDto dto = parsePayload(payload);
             String location = extractLocation(topic);
             String sensorType = extractType(topic);
+
+            if (sensorType == null) {
+                return;
+            }
+
             double value = extractValue(dto, sensorType);
             String formattedTime = formatTime(dto.getTime());
 
@@ -116,6 +127,7 @@ public class MqttSubscriberService {
         }
     }
 
+
     private SensorDataDto parsePayload(String payload) {
         try {
             return objectMapper.readValue(payload, SensorDataDto.class);
@@ -132,12 +144,12 @@ public class MqttSubscriberService {
 
     private String extractType(String topic) {
         String type = topic.substring(topic.lastIndexOf('/') + 1);
-        switch (type) {
-            case "temperature", "humidity", "co2", "battery", "illumination" -> {}
-            default -> throw new UnsupportedSensorTypeException(type);
+        if (!Set.of("temperature", "humidity", "co2", "battery", "illumination").contains(type)) {
+            return null; // 또는 throw 예외
         }
         return type;
     }
+
 
     private double extractValue(SensorDataDto dto, String type) {
         Object v = dto.getValue();
